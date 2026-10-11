@@ -1,0 +1,36 @@
+#name: timetracking-app
+
+services:
+
+  timetracking-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    working_dir: /app
+    command:
+      - sleep
+      - infinity
+#    command:
+#      - npm
+#      - run
+#      - dev
+#      - --
+#      - --host
+#      - 0.0.0.0
+    stdin_open: true
+    tty: true
+    ports:
+      - "3460:3000"
+    volumes:
+      - './app:/app'
+      - '../niteowl-ui:/app/packages/niteowl-ui'
+      - '../niteowl-app-config:/app/packages/niteowl-app-config'
+    env_file:
+      - .env
+    restart: unless-stopped
+    networks: [niteowl-dev]
+
+networks:
+  niteowl-dev:
+    name: niteowl-dev
+    external: true
