@@ -18,7 +18,7 @@ Follow the Design Time Tracking App brief: authenticated user and organization c
 
 The app lists, creates, updates, and deletes the current user's entries through the dedicated Time Tracking plugin. The Auth service derives the user from the session and enforces active organization membership, organization isolation, and entry ownership server-side.
 
-`timetracking.niteowl.dev` must remain in the Auth service's `BETTER_AUTH_TRUSTED_ORIGINS` value for cross-origin session requests.
+`timetracking.niteowl.dev` and `timetracking.mccarthysirishpub.com` must remain in the Auth service's `BETTER_AUTH_TRUSTED_ORIGINS` value for cross-origin session requests.
 
 ## Development
 

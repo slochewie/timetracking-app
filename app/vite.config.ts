@@ -6,7 +6,10 @@ import viteReact from '@vitejs/plugin-react'
 
 const config = defineConfig({
   server: {
-    allowedHosts: ['timetracking.niteowl.dev'],
+    allowedHosts: [
+      'timetracking.niteowl.dev',
+      'timetracking.mccarthysirishpub.com',
+    ],
   },
   resolve: { tsconfigPaths: true },
   plugins: [tanstackStart(), viteReact()],
