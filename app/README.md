@@ -14,11 +14,11 @@ Follow the Design Time Tracking App brief: authenticated user and organization c
 - Entry-history view ready for the organization-scoped data layer.
 - Correct application metadata.
 
-## Outstanding integration
+## Auth integration
 
-The auth service does not yet provide a time-entry plugin. Saving remains disabled and history does not display fabricated data. Implement the dedicated plugin and server-side authorization before enabling save/history. Every persisted record must belong to a verified authenticated user and organization; derive the user from the session and verify organization membership server-side.
+The app lists, creates, updates, and deletes the current user's entries through the dedicated Time Tracking plugin. The Auth service derives the user from the session and enforces active organization membership, organization isolation, and entry ownership server-side.
 
-The LAN preview does not currently verify the central NiteOwl session. Validate authentication on the configured domain and its trusted-origin/cookie setup before claiming login and organization selection work end-to-end.
+`timetracking.niteowl.dev` must remain in the Auth service's `BETTER_AUTH_TRUSTED_ORIGINS` value for cross-origin session requests.
 
 ## Development
 
@@ -28,4 +28,4 @@ From the repository root:
     docker compose exec timetracking-app npx tsc --noEmit
     docker compose exec timetracking-app npm run build
 
-Host port: 3460. The Compose service still uses the existing sleep-infinity development pattern; start the development server again after a container restart.
+Host port: 3460. The Compose service starts the Vite development server on container startup.

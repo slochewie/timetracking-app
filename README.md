@@ -4,7 +4,9 @@ NiteOwl's planned organization-aware app for recording work performed **outside 
 
 ## Project status
 
-**Scaffold stage.** The repository currently contains a minimal TanStack Start application with a single starter page. Organization selection, time-entry forms, authentication, persistence, and reporting are not implemented in the inspected scaffold.
+The application now uses the central NiteOwl Better Auth session and organization
+context and supports persistent self-managed time entries through the dedicated
+Time Tracking auth plugin.
 
 ## Intended workflow
 
@@ -47,13 +49,13 @@ Additional scripts: `npm run generate-routes` generates TanStack Router route ty
 
 The current scaffold uses TanStack Start, TanStack Router, React 19, TypeScript, Vite, and npm. It uses basic CSS; Tailwind CSS and shadcn/ui are not present in the inspected scaffold.
 
-## Planned work
+## Implemented workflow
 
 - Organization-aware time entry and organization-scoped access.
-- Date picker defaulting to the current date, with support for historical entry.
-- Start/end time selection and validation, including a clear policy for overnight work.
-- Persistent records, entry review, and editing.
-- Authentication and authorization appropriate to the existing NiteOwl organization model.
+- Date, start/end time, overnight, and notes entry.
+- Persistent create, history, edit, and delete operations.
+- Central Better Auth authentication and organization selection.
+- Server-side duration calculation, membership validation, isolation, and ownership.
 
-Implementation details for data storage, reporting, deployment, and approval workflows remain to be decided. No schedule import or 7shifts integration is planned.
+No schedule import or 7shifts integration is planned.
 
