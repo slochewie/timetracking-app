@@ -29,6 +29,17 @@ function formatDuration(durationMinutes: number) {
   return `${Math.floor(durationMinutes / 60)}h ${String(durationMinutes % 60).padStart(2, "0")}m`;
 }
 
+type WorkPeriod = { id: string; start: string; end: string; overnight: boolean };
+
+function emptyPeriod(): WorkPeriod {
+  return { id: crypto.randomUUID(), start: "", end: "", overnight: false };
+}
+
+function periodDuration(period: WorkPeriod) {
+  if (!period.start || !period.end) return 0;
+  return minutes(period.end) - minutes(period.start) + (period.overnight ? 1440 : 0);
+}
+
 function TimeTracking() {
   const hostname = useCurrentHostname();
   const brand = getDeploymentBrand(hostname ?? "");
@@ -36,9 +47,7 @@ function TimeTracking() {
   const { data: organizations, isPending: organizationsPending } = authClient.useListOrganizations();
   const { data: organization } = authClient.useActiveOrganization();
   const [date, setDate] = useState(localDate);
-  const [start, setStart] = useState("");
-  const [end, setEnd] = useState("");
-  const [overnight, setOvernight] = useState(false);
+  const [periods, setPeriods] = useState<WorkPeriod[]>(() => [emptyPeriod()]);
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
   const [tab, setTab] = useState<"entry" | "history">("entry");
@@ -48,8 +57,9 @@ function TimeTracking() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [entries, setEntries] = useState<TimeEntry[]>([]);
-  const duration = start && end ? minutes(end) - minutes(start) + (overnight ? 1440 : 0) : 0;
-  const validDuration = duration > 0 && duration <= 1440;
+  const durations = periods.map(periodDuration);
+  const validPeriods = periods.every((period, index) => Boolean(period.start && period.end) && durations[index] > 0 && durations[index] <= 1440);
+  const totalDuration = durations.reduce((total, value) => total + value, 0);
 
   useEffect(() => {
     if (!session?.user || !organization?.id) {
@@ -73,11 +83,21 @@ function TimeTracking() {
 
   function resetForm() {
     setDate(localDate());
-    setStart("");
-    setEnd("");
-    setOvernight(false);
+    setPeriods([emptyPeriod()]);
     setNotes("");
     setEditingId(null);
+  }
+
+  function updatePeriod(id: string, changes: Partial<Omit<WorkPeriod, "id">>) {
+    setPeriods((current) => current.map((period) => period.id === id ? { ...period, ...changes } : period));
+  }
+
+  function addPeriod() {
+    setPeriods((current) => [...current, emptyPeriod()]);
+  }
+
+  function removePeriod(id: string) {
+    setPeriods((current) => current.filter((period) => period.id !== id));
   }
 
   async function changeOrganization(organizationId: string) {
@@ -102,13 +122,13 @@ function TimeTracking() {
 
   async function submitEntry(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!organization?.id || !validDuration) return;
+    if (!organization?.id || !validPeriods) return;
     setSaving(true);
     setError("");
-    const input = { organizationId: organization.id, workDate: date, startTime: start, endTime: end, endsNextDay: overnight, notes: notes.trim() || null };
     try {
-      const entry = editingId ? await updateTimeEntry(editingId, input) : await createTimeEntry(input);
-      setEntries((current) => [entry, ...current.filter((item) => item.id !== entry.id)].sort((left, right) => `${right.workDate} ${right.startTime}`.localeCompare(`${left.workDate} ${left.startTime}`)));
+      const inputs = periods.map((period) => ({ organizationId: organization.id, workDate: date, startTime: period.start, endTime: period.end, endsNextDay: period.overnight, notes: notes.trim() || null }));
+      const savedEntries = editingId ? [await updateTimeEntry(editingId, inputs[0])] : await Promise.all(inputs.map(createTimeEntry));
+      setEntries((current) => [...savedEntries, ...current.filter((item) => !savedEntries.some((saved) => saved.id === item.id))].sort((left, right) => `${right.workDate} ${right.startTime}`.localeCompare(`${left.workDate} ${left.startTime}`)));
       resetForm();
       setTab("history");
     } catch (saveError) {
@@ -120,9 +140,7 @@ function TimeTracking() {
 
   function editEntry(entry: TimeEntry) {
     setDate(entry.workDate);
-    setStart(entry.startTime);
-    setEnd(entry.endTime);
-    setOvernight(entry.endsNextDay);
+    setPeriods([{ id: crypto.randomUUID(), start: entry.startTime, end: entry.endTime, overnight: entry.endsNextDay }]);
     setNotes(entry.notes ?? "");
     setEditingId(entry.id);
     setError("");
@@ -163,15 +181,17 @@ function TimeTracking() {
         </section>
         {error ? <p className="error" role="alert">{error}</p> : null}
         {tab === "entry" ? <section className="entry-card">
-          <div className="card-heading"><h2>{editingId ? "Edit time entry" : "New time entry"}</h2><p>Record a completed period of work.</p></div>
+          <div className="card-heading"><h2>{editingId ? "Edit time entry" : "New time entry"}</h2><p>Record one or more completed periods of work.</p></div>
           <form onSubmit={submitEntry}>
             <label>Work date<input required type="date" value={date} onInput={(event) => setDate(event.currentTarget.value)} /></label>
-            <div className="time-fields"><label>Start time<input required type="time" value={start} onInput={(event) => setStart(event.currentTarget.value)} /></label><label>End time<input required type="time" value={end} onInput={(event) => setEnd(event.currentTarget.value)} /></label></div>
-            <label className="checkbox"><input type="checkbox" checked={overnight} onChange={(event) => setOvernight(event.target.checked)} />End time is on the following day</label>
-            <div className="duration"><span>Calculated duration</span><output aria-live="polite">{validDuration ? formatDuration(duration) : "—"}</output></div>
-            {start && end && !validDuration ? <p className="error" role="alert">End time must follow start time, with a duration of no more than 24 hours. Select following day for overnight work.</p> : null}
+            <div className="period-list">{periods.map((period, index) => {
+              const periodIsValid = durations[index] > 0 && durations[index] <= 1440;
+              return <fieldset className="period" key={period.id}><legend>Work period {index + 1}</legend><div className="period-heading"><span>{period.start && period.end && periodIsValid ? formatDuration(durations[index]) : "Enter start and end times"}</span>{periods.length > 1 && !editingId ? <button className="remove-period" type="button" onClick={() => removePeriod(period.id)} aria-label={`Remove work period ${index + 1}`}>Remove</button> : null}</div><div className="time-fields"><label>Start time<input required type="time" value={period.start} onInput={(event) => updatePeriod(period.id, { start: event.currentTarget.value })} /></label><label>End time<input required type="time" value={period.end} onInput={(event) => updatePeriod(period.id, { end: event.currentTarget.value })} /></label></div><label className="checkbox"><input type="checkbox" checked={period.overnight} onChange={(event) => updatePeriod(period.id, { overnight: event.target.checked })} />End time is on the following day</label>{period.start && period.end && !periodIsValid ? <p className="error" role="alert">End time must follow start time, with a duration of no more than 24 hours. Select following day for overnight work.</p> : null}</fieldset>;
+            })}</div>
+            {!editingId ? <button className="add-period secondary" type="button" onClick={addPeriod}>+ Add another start/stop time</button> : null}
+            <div className="duration"><span>Total calculated duration</span><output aria-live="polite">{validPeriods ? formatDuration(totalDuration) : "—"}</output></div>
             <label>Notes <span className="optional">(optional)</span><textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Add details about this time entry" maxLength={2000} /></label>
-            <div className="form-footer"><p>Duration is validated and calculated again by the server.</p><div className="form-actions">{editingId ? <button className="secondary" type="button" onClick={resetForm}>Cancel</button> : null}<button className="primary" type="submit" disabled={!session?.user || !organization?.id || !date || !start || !end || !validDuration || saving}>{saving ? "Saving…" : editingId ? "Update time entry" : "Save time entry"}</button></div></div>
+            <div className="form-footer"><p>Each work period is saved separately and validated by the server.</p><div className="form-actions">{editingId ? <button className="secondary" type="button" onClick={resetForm}>Cancel</button> : null}<button className="primary" type="submit" disabled={!session?.user || !organization?.id || !date || !validPeriods || saving}>{saving ? "Saving…" : editingId ? "Update time entry" : periods.length > 1 ? `Save ${periods.length} time entries` : "Save time entry"}</button></div></div>
           </form>
         </section> : <section className="entry-card history">
           <h2>Organization time entries</h2>
